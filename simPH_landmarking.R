@@ -16,8 +16,10 @@ set.seed(1234)
 n <- 1000
 n_iterations <- 5
 
+
 x <- as.matrix(cbind(rnorm(n), rnorm(n)))
 theta0 <- c(0.1, 2)
+# initial covariables: income, interest rate...
 betah0 <- c(-0.5, 0.75)
 base_date <- as.Date("2020-01-01")
 
@@ -77,10 +79,19 @@ for (i in seq_len(n_iterations)) {
 }
 
 # Print summary of survivors after each iteration
+survivors_summary <- data.frame(
+  iteration = integer(),
+  survivors = integer()
+)
+
 for (i in 1:n_iterations) {
   count <- sum(df_wide[[paste0("status_iteration_", i)]] == 0, na.rm = TRUE)
   cat(sprintf("Survivors after iteration %d: %d\n", i, count))
+  survivors_summary <- rbind(survivors_summary, data.frame(iteration = i, survivors = count))
 }
 
+
+print(survivors_summary)
+write.csv(survivors_summary, file = "survivors_summary.csv", row.names = FALSE)
 write.csv(df_wide, file = "df_wide.csv", row.names = FALSE)
 
