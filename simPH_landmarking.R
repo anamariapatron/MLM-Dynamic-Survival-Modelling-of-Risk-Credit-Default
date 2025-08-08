@@ -2,7 +2,7 @@
 
 # set directory
 getwd()
-setwd("~/Documents/GitHub/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage-Sector")
+#setwd("~/Documents/GitHub/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage-Sector")
 
 #libraries
 rm(list = ls())
@@ -37,6 +37,14 @@ for (i in 1:n_iterations) {
   df_wide[[paste0("status_iteration_", i)]] <- NA_integer_
 }
 
+
+
+
+
+
+
+
+####fucntion in here
 # Iterate over each time point
 for (i in seq_len(n_iterations)) {
   survivors <- which(alive)
@@ -77,6 +85,8 @@ for (i in seq_len(n_iterations)) {
   # Update alive vector
   alive[survivors] <- status_vals == 0
 }
+
+###function in here
 
 # Print summary of survivors after each iteration
 survivors_summary <- data.frame(
