@@ -10,35 +10,33 @@ set.seed(1234)
 
 # SIMULATION PARAMETERS
 n <- 1000                   # number of individuals
-n_iterations <- 5          # number of landmarking iterations
+n_iterations <- 5           # number of landmarking iterations
 base_date <- as.Date("2020-01-01")  # reference date for observation windows
 
 # BASELINE COVARIATES (2 variables)
 x <- as.matrix(cbind(rnorm(n), rnorm(n)))
 
 # LANDMARK TIMES
-landmarks <- seq(0, n_iterations * 1, by = 1)  # 0, 12, 24, ..., 60
+landmarks <- seq(0, n_iterations * 1, by = 1)  # e.g., 0,1,2,3,4,5
 K <- length(landmarks) - 1  # number of intervals
 
+# Adjusted coefficients (betas) - smaller magnitude
+betas <- matrix(c(-0.1, 0.15,
+                  -0.1, 0.15,
+                  -0.1, 0.15,
+                  -0.1, 0.15,
+                  -0.1, 0.15),
+                nrow = K, byrow = TRUE)
 
-# COEFFICIENTS (BETAS) PER INTERVAL, b pequeños
-betas <- matrix(c(-0.2, 0.3,
-                  -0.2, 0.3,
-                  -0.2, 0.3,
-                  -0.2, 0.3,
-                  -0.2, 0.3), nrow = K, byrow = TRUE)
+# Adjusted Weibull parameters - larger scales (longer survival)
+thetas <- matrix(c(0.5, 400,
+                   0.5, 280,
+                   0.5, 360,
+                   0.5, 400,
+                   0.5, 450), nrow = K, byrow = TRUE)
 
 
-thetas <- matrix(c(0.5, 100,
-                   0.5, 90,
-                   0.5, 80,
-                   0.5, 70,
-                   0.5, 60), nrow = K, byrow = TRUE)
-
-betas = rbind(c(0.1,-0.2),c(0.1,-0.2),c(0.1,-0.2),c(0.15,-0.25),c(0.15,-0.25),c(0.15,-0.25))/2
-
-thetas = rbind(c(10,1.5),c(11,1.7),c(12,1.9),c(13,2),c(14,3),c(15,4))*1.5
-# MAIN DATAFRAME SETUP
+# SETUP MAIN DATAFRAME
 df_wide <- data.frame(individual = 1:n)
 df_wide$initial_date <- as_date("2010-01-01") + days(sample(0:364, n, replace = TRUE))
 
@@ -47,14 +45,15 @@ for (i in 1:n_iterations) {
   df_wide[[paste0("event_time_iteration_", i)]] <- NA_real_
   df_wide[[paste0("observation_date_iteration_", i)]] <- as.Date(NA)
   df_wide[[paste0("status_iteration_", i)]] <- NA_integer_
-  df_wide[[paste0("x1_iteration_", i)]] <- rnorm(10) #covariate 1
-  df_wide[[paste0("x2_iteration_", i)]] <- rnorm(10) #covariate 2
+  # Covariates for each iteration (random normal values)
+  df_wide[[paste0("x1_iteration_", i)]] <- rnorm(n)
+  df_wide[[paste0("x2_iteration_", i)]] <- rnorm(n)
 }
 
 # TRACK WHO IS STILL ALIVE
 alive <- rep(TRUE, n)
 
-# LANDMARK-BASED SIMULATION FUNCTION (UPDATED)
+# LANDMARK-BASED SIMULATION FUNCTION (UPDATED WITH TRUNCATED UNIFORM)
 simLMPH <- function(seed, x, Betas, Thetas, LMs, dist, alive_init) {
   set.seed(seed)
   K <- length(LMs) - 1
@@ -67,15 +66,14 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist, alive_init) {
     survivors <- which(alive)
     if (length(survivors) == 0) break
     
-    # Subset design matrix for survivors in this interval
     des_k <- x[survivors, , drop = FALSE]
     beta_k <- Betas[k, ]
     theta_k <- Thetas[k, ]
     linpred <- des_k %*% beta_k
     mlambda <- exp(-linpred)
     
-    # Baseline functions
     if (dist == "W") {
+      # Baseline survival and quantile functions for Weibull
       S0f <- function(t) pweibull(t, shape = theta_k[1], scale = theta_k[2], lower.tail = FALSE)
       quantf <- function(p) qweibull(p, shape = theta_k[1], scale = theta_k[2])
     } else {
@@ -84,20 +82,26 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist, alive_init) {
     
     for (j in seq_along(survivors)) {
       i <- survivors[j]
-      u <- runif(1)
-      t_prev <- tpoints[k]
-      S_L <- S0f(t_prev)
-      p_target <- 1 - exp(log(u * S_L) * mlambda[j])
-      p_target <- max(p_target, .Machine$double.eps)
+      # Calculate baseline survival at landmark time L_k (truncation point)
+      S_L <- S0f(tpoints[k])
+      # Generate truncated uniform variable between 0 and S(L_k)
+      u <- runif(1, min = 0, max = S_L)
+      # Adjust survival probability for individual with covariates
+      p_target <- u^(1 / mlambda[j])  # invert the conditional survival
+      p_target <- max(p_target, .Machine$double.eps)  # avoid zero
+      
+      # Calculate event time via inverse baseline survival
       t_rel <- quantf(p_target)
-      if (t_rel <= LMs[k + 1]) {
+      
+      # Check if event time falls within current interval
+      if (t_rel <= tpoints[k + 1]) {
         out_time[i] <- t_rel
         alive[i] <- FALSE
       }
     }
   }
   
-  # Final extrapolation for remaining survivors
+  # Final extrapolation for survivors who haven't failed yet
   if (any(alive)) {
     survivors <- which(alive)
     des_k <- x[survivors, , drop = FALSE]
@@ -111,10 +115,10 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist, alive_init) {
     
     for (j in seq_along(survivors)) {
       i <- survivors[j]
+      # At final step, truncate at max time (e.g., last landmark)
+      S_L <- S0f(tpoints[K + 1])
       u <- runif(1)
-      t_prev <- tpoints[K + 1]
-      S_L <- S0f(t_prev)
-      p_target <- 1 - exp(log(u * S_L) * mlambda[j])
+      p_target <- u^(1 / mlambda[j])
       p_target <- max(p_target, .Machine$double.eps)
       t_rel <- quantf(p_target)
       out_time[i] <- t_rel
@@ -123,8 +127,9 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist, alive_init) {
   
   return(out_time)
 }
-# MAIN SIMULATION LOOP (CORREGIDO)
-alive <- rep(TRUE, nrow(df_wide))  # Inicialización
+
+# MAIN SIMULATION LOOP WITH UPDATED FUNCTION
+alive <- rep(TRUE, nrow(df_wide))
 
 for (i in seq_len(n_iterations)) {
   survivors <- which(alive)
@@ -132,10 +137,17 @@ for (i in seq_len(n_iterations)) {
   
   cat("Iteration", i, "- survivors:", length(survivors), "\n")
   
-  # Simulate event times (la función ya usa submatrices internamente)
+  # Use covariates at iteration i
+  covariates_i <- cbind(df_wide[[paste0("x1_iteration_", i)]],
+                        df_wide[[paste0("x2_iteration_", i)]])
+  
+  # Subset covariates to survivors
+  x_survivors <- covariates_i[survivors, , drop = FALSE]
+  
+  # Simulate event times using truncated uniform method
   sim_times <- simLMPH(
     seed = 1000 + i * 10,
-    x = x[survivors, , drop = FALSE],
+    x = x_survivors,
     Betas = betas,
     Thetas = thetas,
     LMs = landmarks,
@@ -143,7 +155,7 @@ for (i in seq_len(n_iterations)) {
     alive_init = rep(TRUE, length(survivors))
   )
   
-  # Generate observation dates randomly within the 1-month window
+  # Generate observation dates randomly within the 1-year window for this iteration
   month_start <- base_date %m+% months((i - 1) * 12)
   month_end <- month_start %m+% months(1) - days(1)
   
@@ -152,10 +164,10 @@ for (i in seq_len(n_iterations)) {
                              max = as.numeric(month_end)),
                        origin = "1970-01-01")
   
-  # Months since initial date
+  # Calculate months elapsed since initial date to observation date
   months_elapsed <- interval(df_wide$initial_date[survivors], obs_dates) %/% months(1)
   
-  # Event status (1 = event, 0 = censored)
+  # Event status: 1 = event occurred, 0 = censored
   status_vals <- as.integer(months_elapsed >= sim_times)
   
   # Save results to dataframe
@@ -163,25 +175,24 @@ for (i in seq_len(n_iterations)) {
   df_wide[[paste0("observation_date_iteration_", i)]][survivors] <- obs_dates
   df_wide[[paste0("status_iteration_", i)]][survivors] <- status_vals
   
-  # Update alive vector
+  # Update who is still alive for next iteration
   alive[survivors] <- status_vals == 0
 }
 
-
+# Print summary of deaths per iteration
 for (i in 1:n_iterations) {
   status_col <- df_wide[[paste0("status_iteration_", i)]]
   if (all(is.na(status_col))) {
-    cat("Iteración", i, ": sin datos (NA)\n")
+    cat("Iteration", i, ": no data (NA)\n")
   } else {
-    cat("Iteración", i, ":",
+    cat("Iteration", i, ":",
         round(mean(status_col, na.rm = TRUE), 3),
-        "muertos\n")
+        "deaths\n")
   }
 }
 
-
 # -------------------------------------------------------------
-# PLOT INDIVIDUAL-SPECIFIC HAZARDS
+# PLOT INDIVIDUAL-SPECIFIC  HAZARDS
 # -------------------------------------------------------------
 
 DES <- list()
@@ -190,53 +201,42 @@ for (i in 1:n_iterations) {
   DES[[i]] <- combined_matrix
 }
 
+#TO DO:
 
-plotLMPH <- function(individuals, DES, Betas, Thetas, LMs, dist = "W", ymax, lout) {
-  
-  # Time grid for smooth plotting
+# -------------------------------------------------------------
+# PLOT INDVIDUAL CUMULATIVE HAZARDS
+# -------------------------------------------------------------
+
+
+plotLMPH_cumhaz <- function(individuals, DES, Betas, Thetas, LMs, dist = "W", ymax, lout) {
   time_grid <- seq(0, max(LMs), length.out = lout)
-  
-  # Add 0 to LMs to define interval edges
   tpoints <- as.vector(LMs)
   K <- length(tpoints)
   
-  # Hazard function by distribution
   get_basehaz <- function(t, theta, dist) {
     if (dist == "W") {
-      # Weibull hazard
-      
-      return(hweibull(t, theta[1], theta[2]))
-    }
-    else if (dist == "LN") {
-      
-      return(hlnorm(t, theta[1], theta[2]))
-    }
-    else if (dist == "G") {
-      
-      return(hgamma(t, theta[1], theta[2]))
-    }
-    else {
-      stop("Distribution not implemented.")
-    }
+      shape <- theta[1]
+      scale <- theta[2]
+      hz <- (shape / scale) * (t / scale)^(shape - 1)
+      hz[t <= 0] <- 0
+      return(hz)
+    } else stop("Distribution not implemented.")
   }
   
-  # Colors for plotting
   colors <- rainbow(length(individuals))
   
-  # Begin plotting
   plot(NULL, xlim = c(0, max(time_grid)), ylim = c(0, ymax),
-       xlab = "Time", ylab = "Hazard", main = "Individual-Specific Hazard Functions")
+       xlab = "Time", ylab = "Cumulative Hazard", main = "Individual Cumulative Hazard Functions")
   
   for (idx in seq_along(individuals)) {
     i <- individuals[idx]
-    hazards <- numeric(length(time_grid))
+    cumhaz <- numeric(length(time_grid))
     
-    for (k in 1:K) {
+    for (k in 1:(K - 1)) {
       t_start <- tpoints[k]
-      t_end <- ifelse(k < K, tpoints[k + 1], max(time_grid))
+      t_end <- tpoints[k + 1]
       tk_grid <- time_grid[time_grid >= t_start & time_grid < t_end]
-      
-      if (length(tk_grid) == 0) next
+      if (length(tk_grid) < 2) next
       
       des_k <- DES[[k]]
       beta_k <- Betas[k, ]
@@ -246,19 +246,126 @@ plotLMPH <- function(individuals, DES, Betas, Thetas, LMs, dist = "W", ymax, lou
       base_haz <- get_basehaz(tk_grid, theta_k, dist)
       haz_k <- base_haz * exp(linpred)
       
-      hazards[time_grid %in% tk_grid] <- haz_k
+      dh <- diff(tk_grid)
+      haz_mid <- (head(haz_k, -1) + tail(haz_k, -1)) / 2
+      cumint <- cumsum(haz_mid * dh)
+      
+      start_idx <- which.min(abs(time_grid - tk_grid[1]))
+      
+      if (k == 1) {
+        cumhaz[start_idx:(start_idx + length(cumint) - 1)] <- cumint
+      } else {
+        prev_end <- max(which(cumhaz != 0))
+        cumhaz[(prev_end + 1):(prev_end + length(cumint))] <- cumint + cumhaz[prev_end]
+      }
     }
     
-    lines(time_grid, hazards, col = colors[idx], lwd = 2)
+    # detect the last non-zero point
+    last_nonzero <- max(which(cumhaz != 0))
+    
+    if (last_nonzero > 1) {
+      lines(time_grid[1:last_nonzero], cumhaz[1:last_nonzero], col = colors[idx], lwd = 2)
+    }
   }
   
   legend("topright", legend = paste("Individual", individuals), col = colors,
          lty = 1, lwd = 2)
 }
 
+png("individual_cumulative_hazard.png", width = 800, height = 600)
 
-plotLMPH(individuals = c(1,5), DES = DES, Betas = betas, Thetas = thetas, LMs = landmarks, dist = "W", ymax  = 1, lout = 1000)
 
-plotLMPH(individuals = c(1,5,6,7), DES = DES, Betas = betas, Thetas = thetas, LMs = landmarks, dist = "W", ymax  = 0.01, lout = 1000)
+
+plotLMPH_cumhaz(individuals = c(2,3,85), DES = DES, Betas = betas, Thetas = thetas, 
+                LMs = landmarks, dist = "W", ymax = 0.2, lout = 1000)
+
+dev.off()
+
+# -------------------------------------------------------------
+# PLOT POPULATION CUMULATIVE HAZARDS
+# -------------------------------------------------------------
+
+
+
+get_population_cumhaz_data <- function(DES, Betas, Thetas, LMs, dist = "W", lout = 1000) {
+  
+  # Build a time grid (avoid t = 0 to prevent Inf hazards)
+  time_grid <- seq(1e-6, max(LMs), length.out = lout)
+  tpoints <- as.vector(LMs)
+  K <- length(tpoints) - 1
+  
+  # Hazard functions
+  get_basehaz <- function(t, theta, dist) {
+    if (dist == "W") {
+      return((theta[1] / theta[2]) * (t / theta[2])^(theta[1] - 1))
+    } else if (dist == "LN") {
+      stop("Lognormal not implemented for pop hazard here")
+    } else if (dist == "G") {
+      stop("Gamma not implemented for pop hazard here")
+    } else {
+      stop("Unknown distribution")
+    }
+  }
+  
+  # Initialize outputs
+  hazard <- numeric(length(time_grid))
+  cumhaz <- numeric(length(time_grid))
+  
+  # Loop intervals
+  cumhaz_so_far <- 0
+  for (k in 1:K) {
+    t_start <- tpoints[k]
+    t_end   <- tpoints[k + 1]
+    tk_idx  <- which(time_grid >= t_start & time_grid < t_end)
+    if (length(tk_idx) == 0) next
+    
+    des_k   <- DES[[k]]
+    beta_k  <- Betas[k, ]
+    theta_k <- Thetas[k, ]
+    
+    mean_linpred <- mean(des_k %*% beta_k)
+    haz_k <- get_basehaz(time_grid[tk_idx], theta_k, dist) * exp(mean_linpred)
+    
+    hazard[tk_idx] <- haz_k
+    cumhaz[tk_idx] <- cumhaz_so_far + cumsum(haz_k * (max(time_grid) - min(time_grid)) / lout)
+    
+    cumhaz_so_far <- tail(cumhaz[tk_idx], 1)
+  }
+  
+  survival <- exp(-cumhaz)
+  
+  data.frame(
+    time = time_grid,
+    hazard = hazard,
+    cumulative_hazard = cumhaz,
+    survival = survival
+  )
+}
+
+
+# Compute data
+cumhaz_data <- get_population_cumhaz_data(
+  DES = DES,
+  Betas = betas,
+  Thetas = thetas,
+  LMs = landmarks,
+  dist = "W",
+  lout = 1000
+)
+
+head(cumhaz_data, 10)
+
+# Plot cumulative hazard
+png("population_cumulative_hazard.png", width = 800, height = 600)
+
+plot(cumhaz_data$time[-nrow(cumhaz_data)], 
+     cumhaz_data$cumulative_hazard[-nrow(cumhaz_data)], 
+     type = "l", col = "blue", lwd = 2,
+     xlab = "Time", ylab = "Cumulative Hazard",
+     main = "Population Cumulative Hazard")
+
+dev.off()
+
+grid()
 
 
