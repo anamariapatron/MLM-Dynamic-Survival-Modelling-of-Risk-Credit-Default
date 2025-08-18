@@ -5,6 +5,7 @@ rm(list = ls())
 library(HazReg)
 library(dplyr)
 library(lubridate)
+setwd("~/GitHub/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage-Sector")
 
 set.seed(1234)
 
@@ -356,16 +357,22 @@ cumhaz_data <- get_population_cumhaz_data(
 head(cumhaz_data, 10)
 
 # Plot cumulative hazard
-png("population_cumulative_hazard.png", width = 800, height = 600)
+png("population_cumulative_hazardyu.png", width = 800, height = 600)
 
-plot(cumhaz_data$time[-nrow(cumhaz_data)], 
-     cumhaz_data$cumulative_hazard[-nrow(cumhaz_data)], 
-     type = "l", col = "blue", lwd = 2,
-     xlab = "Time", ylab = "Cumulative Hazard",
-     main = "Population Cumulative Hazard")
+valid_idx <- which(cumhaz_data$cumulative_hazard[-nrow(cumhaz_data)] != 0)
+
+if (length(valid_idx) > 0) {
+  plot(cumhaz_data$time[-nrow(cumhaz_data)][valid_idx],
+       cumhaz_data$cumulative_hazard[-nrow(cumhaz_data)][valid_idx],
+       type = "l", col = "blue", lwd = 2,
+       xlab = "Time", ylab = "Cumulative Hazard",
+       main = "Population Cumulative Hazard")
+  grid()
+} else {
+  message("No hay valores de cumulative_hazard distintos de 0 para graficar.")
+}
 
 dev.off()
 
-grid()
 
 
