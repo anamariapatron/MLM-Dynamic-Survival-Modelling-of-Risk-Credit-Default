@@ -147,7 +147,7 @@ for (i in seq_len(n_iterations)) {
   
   # Simulate event times using truncated uniform method
   sim_times <- simLMPH(
-    seed = 1000 + i * 10,
+    seed = 1234,
     x = x_survivors,
     Betas = betas,
     Thetas = thetas,
@@ -273,7 +273,7 @@ plotLMPH_cumhaz <- function(individuals, DES, Betas, Thetas, LMs, dist = "W", ym
          lty = 1, lwd = 2)
 }
 
-png("individual_cumulative_hazard.png", width = 800, height = 600)
+png("graficos/individual_cumulative_hazard.png", width = 800, height = 600)
 
 
 
@@ -357,7 +357,7 @@ cumhaz_data <- get_population_cumhaz_data(
 head(cumhaz_data, 10)
 
 # Plot cumulative hazard
-png("population_cumulative_hazardyu.png", width = 800, height = 600)
+png("graficos/population_cumulative_hazard.png", width = 800, height = 600)
 
 valid_idx <- which(cumhaz_data$cumulative_hazard[-nrow(cumhaz_data)] != 0)
 
