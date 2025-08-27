@@ -1,3 +1,35 @@
+
+# ===============================
+# Optimization of parameters
+# parameters: find shape and scale given target probability
+# ===============================
+
+# Function to compute lambda given k, an interval, and the target probability p
+
+k <- 1.5   # shape parameter (can tune)
+p_target <- 0.2  # 20% default per interval
+
+#dates landmarking
+LM_start_date <- as.Date("2015-01-01")
+LM_dates <- as.Date(c("2020-07-03", "2020-07-03", "2020-12-03", "2021-05-03", "2021-10-03", "2022-03-03", "2022-08-03"))
+LMs <- round(interval(LM_start_date, LM_dates) %/% months(1))
+LMs
+
+find_lambda <- function(t0, t1, k, p_target = 0.2) {
+  f <- function(lambda) {
+    ratio <- exp(-((t1/lambda)^k - (t0/lambda)^k))
+    ratio - (1 - p_target)
+  }
+  uniroot(f, interval = c(1e-6, 1e6))$root
+}
+
+lambdas <- sapply(1:(length(LMs)-1), function(j) {
+  find_lambda(LMs[j], LMs[j+1], k, p_target)
+})
+lambdas
+
+
+
 # ===============================
 #  SIMULATION
 # ===============================
@@ -6,12 +38,31 @@ rm(list = ls())
 library(lubridate)
 set.seed(1234)
 
+
+
 # --- Parameters
+library(lubridate)
+
+# Example: n individuals with different credit start dates
 n <- 1000
 n_iterations <- 5
-base_date <- as.Date("2020-01-01")
+base_date <- as.Date("2020-01-01") #start to observe the behavior in 2020
+credit_start_dates <- as_date("2015-01-01") + days(sample(0:364, n, replace = TRUE))
 
-landmarks <- seq(0, n_iterations, by = 1)  
+# Function to generate individual landmarks
+generate_landmarks <- function(credit_start) {
+  lm1 <- credit_start + years(5)           # first landmark: +5 years
+  lm2 <- lm1 + weeks(6)                    # second: +6 weeks
+  lm3 <- lm2 + weeks(6)                    # third
+  lm4 <- lm3 + weeks(6)                    # fourth
+  lm5 <- lm4 + weeks(6)                    # fifth
+  return(as_date(c(lm1, lm2, lm3, lm4, lm5)))
+}
+# Generate the list of individual landmarks
+landmarks_list <- lapply(credit_start_dates, generate_landmarks)
+
+
+landmarks <- seq(0, n_iterations, by = 1) #assumption cohort  
 K <- length(landmarks) - 1  
 
 betas <- matrix(c(-0.1, 0.15,
@@ -20,13 +71,13 @@ betas <- matrix(c(-0.1, 0.15,
                   -0.1, 0.15,
                   -0.1, 0.15), nrow = K, byrow = TRUE)
 
-thetas <- matrix(c(0.5, 400,
-                   0.5, 280,
-                   0.5, 360,
-                   0.5, 400,
-                   0.5, 450), nrow = K, byrow = TRUE)
+#paaramters of weibull each landmark: Shape (k), Scale (λ)
+#thetas <- matrix(c(0.5, 400, 0.5, 280, 0.5, 360, 0.5, 400, 0.5, 450), nrow = K, byrow = TRUE)
+thetas <- matrix(c(0.5, 66, 0.5, 66, 0.5, 71, 0.5, 76, 0.5, 81), nrow = K, byrow = TRUE)
+
 
 # --- Data
+# credits are originated during 2010, throughout the year
 initial_date <- as_date("2010-01-01") + days(sample(0:364, n, replace = TRUE))
 
 x1_matrix <- matrix(rnorm(n * n_iterations), nrow = n, ncol = n_iterations)
@@ -48,7 +99,7 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist) {
     beta_k <- Betas[k, ]
     theta_k <- Thetas[k, ]
     linpred <- x %*% beta_k
-    mlambda <- exp(-linpred)
+    mlambda <- exp(linpred)
     
     if (dist == "W") {
       S0f <- function(t) pweibull(t, shape = theta_k[1], scale = theta_k[2], lower.tail = FALSE)
@@ -59,8 +110,8 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist) {
     
     for (i in 1:n) {
       S_L <- S0f(tpoints[k])  
-      u <- runif(1, min = 0, max = S_L)
-      p_target <- max(u^(1 / mlambda[i]), .Machine$double.eps)
+      u <- runif(1)
+      p_target <- max(1-u^(1 / mlambda[i]), .Machine$double.eps)
       t_rel <- quantf(p_target)
       
       if (is.na(out_time[i]) && t_rel <= tpoints[k + 1]) {
@@ -75,7 +126,7 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist) {
     beta_k <- Betas[K, ]
     theta_k <- Thetas[K, ]
     linpred <- x[no_event, , drop = FALSE] %*% beta_k
-    mlambda <- exp(-linpred)
+    mlambda <- exp(linpred)
     
     S0f <- function(t) pweibull(t, shape = theta_k[1], scale = theta_k[2], lower.tail = FALSE)
     quantf <- function(p) qweibull(p, shape = theta_k[1], scale = theta_k[2])
@@ -83,7 +134,7 @@ simLMPH <- function(seed, x, Betas, Thetas, LMs, dist) {
     for (j in seq_along(no_event)) {
       i <- no_event[j]
       u <- runif(1)
-      p_target <- max(u^(1 / mlambda[j]), .Machine$double.eps)
+      p_target <- max(1-u^(1 / mlambda[j]), .Machine$double.eps)
       t_rel <- quantf(p_target)
       out_time[i] <- t_rel
     }
@@ -98,42 +149,46 @@ alive <- rep(TRUE, n)
 for (i in seq_len(n_iterations)) {
   cat("Iteration", i, "\n")
   
+  # Select the covariates for this iteration
   covariates_i <- cbind(x1_matrix[, i], x2_matrix[, i])
   
-  # Simulate event times for ALL individuals
-  sim_times <- simLMPH(
-    seed = 1234 + i,  # different seed per iteration
-    x = covariates_i,
-    Betas = betas,
-    Thetas = thetas,
-    LMs = landmarks,
-    dist = "W"
-  )
+  # Initialize vectors for simulated times and observation dates
+  sim_times <- numeric(n)
+  obs_dates <- as.Date(rep(NA, n))
   
-  # Save all times (even if already dead)
+  # --- Simulation per individual
+  for (j in 1:n) {
+    # Simulate event time using each individual's own landmarks
+    sim_times[j] <- simLMPH(
+      seed = 1234 + i + j,               # different seed per iteration and individual
+      x = matrix(covariates_i[j, ], nrow = 1),
+      Betas = betas,
+      Thetas = thetas,
+      LMs = landmarks_list[[j]],         # individual landmarks
+      dist = "W"
+    )
+    
+    # Assign observation date based on the corresponding landmark
+    # Optionally, add a small random noise (0-3 days) for variability
+    obs_dates[j] <- landmarks_list[[j]][i] + sample(0:3, 1)
+  }
+  
+  # Save results
   time_matrix[, i] <- sim_times
-  
-  # Observation dates only make sense for those alive
-  month_start <- base_date %m+% months((i - 1) * 12)
-  month_end <- month_start %m+% months(1) - days(1)
-  obs_dates <- as.Date(runif(n,
-                             min = as.numeric(month_start),
-                             max = as.numeric(month_end)),
-                       origin = "1970-01-01")
   obsdate_matrix[, i] <- obs_dates
   
-  # Status: event if elapsed time >= simulated time, else censored
+  # Determine status: event if elapsed time >= simulated time, else censored
   months_elapsed <- interval(initial_date, obs_dates) %/% months(1)
   status_vals <- as.integer(months_elapsed >= sim_times)
   
-  # If already dead in a previous iteration → keep status = NA
+  # If the individual was already dead in previous iterations → set NA
   status_vals[!alive] <- NA
-  
   status_matrix[, i] <- status_vals
   
-  # Update alive vector
+  # Update the alive vector
   alive <- ifelse(is.na(status_vals), FALSE, status_vals == 0)
 }
+
 
 # --- Summary
 for (i in 1:n_iterations) {
@@ -143,7 +198,162 @@ for (i in 1:n_iterations) {
 }
 
 
+# ===============================
+#  plots: deaths
+# ===============================
+
+library(ggplot2)
+cum_deaths <- cumsum(colSums(status_matrix, na.rm = TRUE))
+df_cum <- data.frame(time = 1:ncol(status_matrix), cum_deaths = cum_deaths)
+
+ggplot(df_cum, aes(x = time, y = cum_deaths)) +
+  geom_line(color = "blue", size = 1) +
+  geom_point(color = "darkblue") +
+  labs(title = "Cumulative Deaths Over Time", x = "landmarking - not date", y = "Cumulative Deaths") +
+  theme_minimal()
 
 
+# ===============================
+#  plots: deaths times
+# ===============================
+#cumulative deaths
+library(ggplot2)
+library(dplyr)
 
+# Convert matrices to long format
+df_events <- data.frame(
+  individual = rep(1:nrow(status_matrix), times = ncol(status_matrix)),
+  time = as.vector(time_matrix),
+  status = as.vector(status_matrix)
+)
+
+# Keep only death events
+df_deaths <- subset(df_events, status == 1 & !is.na(time))
+
+# Create data frame for shaded "quarters" (every 3 time units)
+time_min <- floor(min(df_deaths$time, na.rm = TRUE))
+time_max <- ceiling(max(df_deaths$time, na.rm = TRUE))
+quarter_starts <- seq(time_min, time_max, by = 3)
+quarters <- data.frame(
+  start = quarter_starts,
+  end = quarter_starts + 3
+)
+
+# Plot
+ggplot() +
+  # Shade each 3-time-unit "quarter"
+  geom_rect(data = quarters, aes(xmin = start, xmax = end, ymin = 0, ymax = max(df_deaths$individual)),
+            fill = "grey90", alpha = 0.3) +
+  # Plot death points
+  geom_point(data = df_deaths, aes(x = time, y = individual), color = "red", size = 2, alpha = 0.7) +
+  # Labels
+  labs(
+    title = "Death times per individual",
+    subtitle = "Each point represents the time an individual died",
+    x = "Time elapsed since t0",
+    y = "Individual"
+  ) +
+  # Theme adjustments
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+# ===============================
+
+
+# ===============================
+#  plots: deaths dates
+# ===============================
+library(ggplot2)
+library(lubridate)
+
+# Convert matrices to long format
+df_events <- data.frame(
+  individual = rep(1:nrow(status_matrix), times = ncol(status_matrix)),
+  date = as.Date(as.vector(obsdate_matrix)),
+  status = as.vector(status_matrix)
+)
+
+# Keep only death events
+df_deaths <- subset(df_events, status == 1 & !is.na(date))
+
+# Create data frame for shaded quarters
+quarter_starts <- seq(floor_date(min(df_deaths$date), unit = "quarter"),
+                      ceiling_date(max(df_deaths$date), unit = "quarter"),
+                      by = "3 months")
+quarters <- data.frame(
+  start = quarter_starts,
+  end = quarter_starts + months(3)
+)
+
+# Plot
+ggplot() +
+  geom_rect(data = quarters, aes(xmin = start, xmax = end, ymin = 0, ymax = max(df_deaths$individual)),
+            fill = "grey90", alpha = 0.3) +
+  geom_point(data = df_deaths, aes(x = date, y = individual), color = "red", size = 2, alpha = 0.7) +
+  geom_vline(xintercept = as.Date("2020-12-01"), color = "black", linetype = "solid", size = 1) +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
+  labs(
+    title = "Death Dates per Individual",
+    subtitle = "Each point represents the date an individual died",
+    x = "Quarter start",
+    y = "Individual"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1)
+  )
+
+
+####### points for modelling in where model is going t be re-calibrated #######
+mean_dates <- apply(obsdate_matrix, 2, function(col) {
+  as.Date(mean(as.numeric(col)), origin = "1970-01-01")
+})
+
+
+mean_dates <- as.Date(mean_dates)
+
+labels_df <- data.frame(
+  mean_dates = mean_dates,
+  label = paste0("t", seq_along(mean_dates))
+)
+
+ggplot() +
+  geom_rect(data = quarters, aes(xmin = as.Date(start), xmax = as.Date(end), ymin = 0, ymax = max(df_deaths$individual)),
+            fill = "grey90", alpha = 0.3) +
+  geom_point(data = df_deaths, aes(x = as.Date(date), y = individual), color = "red", size = 2, alpha = 0.7) +
+  geom_vline(data = labels_df, aes(xintercept = mean_dates, color = label), linetype = "solid", size = 1) +
+  geom_text(data = labels_df, aes(x = mean_dates, 
+                                  y = max(df_deaths$individual) , 
+                                  label = label, color = label),
+            vjust = -0.7, hjust = 1.2, size = 5, fontface = "bold") +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  labs(
+    title = "Death Dates per Individual",
+    subtitle = "Each point represents the date an individual died",
+    x = "Month",
+    y = "Individual"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 20, face = "bold"),
+    plot.subtitle = element_text(hjust = 0.5, size = 14),
+    axis.title = element_text(size = 14),
+    axis.text = element_text(size = 12),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  ) +
+  guides(color = "none")
+
+
+#missing: covariates and signs of betas
 
