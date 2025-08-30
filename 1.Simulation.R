@@ -1,4 +1,4 @@
-
+library(lubridate)
 # ===============================
 # Optimization of parameters
 # parameters: find shape and scale given target probability
@@ -11,22 +11,27 @@ p_target <- 0.2  # 20% default per interval
 
 #dates landmarking
 LM_start_date <- as.Date("2015-01-01")
-LM_dates <- as.Date(c("2020-07-03", "2020-07-03", "2020-12-03", "2021-05-03", "2021-10-03", "2022-03-03", "2022-08-03"))
-LMs <- round(interval(LM_start_date, LM_dates) %/% months(1))
+#LM_dates <- as.Date(c("2020-01-01", "2020-03-01", "2020-05-01", "2021-07-01", "2021-09-01", "2021-11-01", "2022-01-01"))
+#LMs <- round(interval(LM_start_date, LM_dates) %/% months(1))
+LMs <-  c(60, 62, 64, 66, 68, 70, 72)
 LMs
 
+
+# Función para encontrar lambda dado t0, t1, k y p_target
 find_lambda <- function(t0, t1, k, p_target = 0.2) {
   f <- function(lambda) {
-    ratio <- exp(-((t1/lambda)^k - (t0/lambda)^k))
+    ratio <- exp(-((t1 / lambda)^k - (t0 / lambda)^k))
     ratio - (1 - p_target)
   }
   uniroot(f, interval = c(1e-6, 1e6))$root
 }
 
-lambdas <- sapply(1:(length(LMs)-1), function(j) {
-  find_lambda(LMs[j], LMs[j+1], k, p_target)
+lambdas <- sapply(1:(length(LMs) - 1), function(j) {
+  find_lambda(LMs[j], LMs[j + 1], k, p_target)
 })
+
 lambdas
+
 
 
 
@@ -35,7 +40,7 @@ lambdas
 # ===============================
 
 rm(list = ls())
-library(lubridate)
+
 set.seed(1234)
 
 
@@ -45,7 +50,7 @@ library(lubridate)
 
 # Example: n individuals with different credit start dates
 n <- 1000
-n_iterations <- 5
+n_iterations <- 7
 base_date <- as.Date("2020-01-01") #start to observe the behavior in 2020
 credit_start_dates <- as_date("2015-01-01") + days(sample(0:364, n, replace = TRUE))
 
@@ -56,7 +61,9 @@ generate_landmarks <- function(credit_start) {
   lm3 <- lm2 + weeks(6)                    # third
   lm4 <- lm3 + weeks(6)                    # fourth
   lm5 <- lm4 + weeks(6)                    # fifth
-  return(as_date(c(lm1, lm2, lm3, lm4, lm5)))
+  lm6 <- lm4 + weeks(6)
+  lm7 <- lm4 + weeks(6)
+  return(as_date(c(lm1, lm2, lm3, lm4, lm5, lm6, lm7)))
 }
 # Generate the list of individual landmarks
 landmarks_list <- lapply(credit_start_dates, generate_landmarks)
@@ -73,12 +80,11 @@ betas <- matrix(c(-0.1, 0.15,
 
 #paaramters of weibull each landmark: Shape (k), Scale (λ)
 #thetas <- matrix(c(0.5, 400, 0.5, 280, 0.5, 360, 0.5, 400, 0.5, 450), nrow = K, byrow = TRUE)
-thetas <- matrix(c(0.5, 66, 0.5, 66, 0.5, 71, 0.5, 76, 0.5, 81), nrow = K, byrow = TRUE)
+thetas <- matrix(c(0.5, 22.25, 0.5, 22.49, 0.5, 85.64, 0.5, 24.26, 0.5, 24.46), nrow = K, byrow = TRUE)
 
 
 # --- Data
 # credits are originated during 2010, throughout the year
-initial_date <- as_date("2010-01-01") + days(sample(0:364, n, replace = TRUE))
 
 x1_matrix <- matrix(rnorm(n * n_iterations), nrow = n, ncol = n_iterations)
 x2_matrix <- matrix(rnorm(n * n_iterations), nrow = n, ncol = n_iterations)
@@ -160,7 +166,7 @@ for (i in seq_len(n_iterations)) {
   for (j in 1:n) {
     # Simulate event time using each individual's own landmarks
     sim_times[j] <- simLMPH(
-      seed = 1234 + i + j,               # different seed per iteration and individual
+      seed = 1234,               # different seed per iteration and individual
       x = matrix(covariates_i[j, ], nrow = 1),
       Betas = betas,
       Thetas = thetas,
@@ -178,7 +184,7 @@ for (i in seq_len(n_iterations)) {
   obsdate_matrix[, i] <- obs_dates
   
   # Determine status: event if elapsed time >= simulated time, else censored
-  months_elapsed <- interval(initial_date, obs_dates) %/% months(1)
+  months_elapsed <- interval(credit_start_dates, obs_dates) %/% months(1)
   status_vals <- as.integer(months_elapsed >= sim_times)
   
   # If the individual was already dead in previous iterations → set NA
@@ -188,6 +194,7 @@ for (i in seq_len(n_iterations)) {
   # Update the alive vector
   alive <- ifelse(is.na(status_vals), FALSE, status_vals == 0)
 }
+initial_dates_matrix <- credit_start_dates
 
 
 # --- Summary
@@ -204,7 +211,7 @@ for (i in 1:n_iterations) {
 
 library(ggplot2)
 cum_deaths <- cumsum(colSums(status_matrix, na.rm = TRUE))
-df_cum <- data.frame(time = 1:ncol(status_matrix), cum_deaths = cum_deaths)
+df_cum <- data.frame(time = LMs, cum_deaths = cum_deaths)
 
 ggplot(df_cum, aes(x = time, y = cum_deaths)) +
   geom_line(color = "blue", size = 1) +
@@ -318,12 +325,13 @@ ggplot() +
 mean_dates <- apply(obsdate_matrix, 2, function(col) {
   as.Date(mean(as.numeric(col)), origin = "1970-01-01")
 })
-
-
 mean_dates <- as.Date(mean_dates)
 
+LM_start_date <- as.Date("2015-01-01")
+LMs <-  c(60, 62, 64, 66, 68, 70, 72)
+
 labels_df <- data.frame(
-  mean_dates = mean_dates,
+  mean_dates = LM_start_date %m+% months(LMs),
   label = paste0("t", seq_along(mean_dates))
 )
 
