@@ -51,7 +51,22 @@ df_long$month_final <- landmarks[df_long$iteration]
 #   event_status = "status",
 #   survival_submodel = "cause_specific"  # modelo de supervivencia causa específica
 # )
-
+# t_vals <- seq(0, max(df_aft$time), length.out = 100)
+# newdata <- df_aft %>% summarise(iteration = mean(iteration), month_final = mean(month_final))
+# H_vals <- cumulative_hazard(aft_model, newdata, t_vals)
+# 
+# df_plot <- data.frame(time = t_vals, cumulative_hazard = H_vals)
+# 
+# landmarks <-  c(60, 62, 64, 66, 68, 70, 72)
+# # Landmark times, etiquetas y colores
+# labels <- c("t1", "t2", "t3", "t4", "t5", "t6", "t7")
+# colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#FF99B8") 
+# # Crear data.frame de landmarks
+# df_lm <- data.frame(
+#   time = landmarks,
+#   label = labels,
+#   color = colors
+# )
 
 
 # ===============================
@@ -87,122 +102,84 @@ df_aft <- df_long %>%
                          df_long$month_final[df_long$id == id][event_index],
                          72)
   ) %>%
-  select(id, status, time, iteration, month_final, x1, x2) %>%
   ungroup()
 
 
 
 
-# AFT model using a weibull baseline distribution #TO DO: weibull?
-fit.aft <- aftreg(Surv(time, status) ~ x1 + x2,
-                  data = df_aft,
-                  dist = "weibull")
 
-summary(fit.aft)
-
-# PH model using a weibull baseline distribution
-fit.ph <- phreg(Surv(time, status) ~ x1 + x2,
-                data = df_aft,
-                dist = "weibull")
-
-summary(fit.ph)
-
-# Comparison of the three models using AIC
-AIC.aft <- -2*(fit.aft$loglik[2]) + 2*length(fit.aft$coefficients)
-AIC.ph <- -2*(fit.ph$loglik[2]) + 2*length(fit.ph$coefficients)
-
-AIC.aft
-
-AIC.ph
-
-plot(fit.aft)
-# Filtrar el dataframe para el rango deseado
-df_plot_trunc <- df_plot %>% 
-  filter(time >= 60 & time <= 70)
-
-df_lm_trunc <- df_lm %>% 
-  filter(time >= 60 & time <= 70)
-
-# Graficar solo en el rango 60-70
-ggplot(df_plot_trunc, aes(x = time, y = cumulative_hazard)) +
-  geom_line(color = "blue", size = 1.2) +
-  geom_vline(data = df_lm_trunc, aes(xintercept = time, color = label),
-             linetype = "dashed", show.legend = FALSE) +
-  geom_text(data = df_lm_trunc,
-            aes(x = time,
-                y = max(df_plot_trunc$cumulative_hazard) * 0.95,
-                label = label,
-                color = label),
-            angle = 90, vjust = -0.5, hjust = 1, show.legend = FALSE) +
-  scale_color_manual(values = setNames(colors, labels)) +
-  labs(
-    title = "Cumulative Hazard from AFT Weibull Model (Times 60-70)",
-    x = "Time",
-    y = "Cumulative Hazard"
-  ) +
-  theme_minimal()
-
-
-
-
-
-
-
-# Función para cumulative hazard
-cumulative_hazard <- function(model, newdata, t) {
-  # t = vector de tiempos
-  lp <- predict(model, newdata = newdata, type = "lp")  # linear predictor
-  k <- 1 / model$scale
-  lambda <- exp(-lp * model$scale)
-  H <- (t / lambda)^k
-  return(H)
-}
-
-
-t_vals <- seq(0, max(df_aft$time), length.out = 100)
-newdata <- df_aft %>% summarise(iteration = mean(iteration), month_final = mean(month_final))
-H_vals <- cumulative_hazard(aft_model, newdata, t_vals)
-
-df_plot <- data.frame(time = t_vals, cumulative_hazard = H_vals)
-
-landmarks <-  c(60, 62, 64, 66, 68, 70, 72)
-# Landmark times, etiquetas y colores
-labels <- c("t1", "t2", "t3", "t4", "t5", "t6", "t7")
-colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#FF99B8") 
-# Crear data.frame de landmarks
-df_lm <- data.frame(
-  time = landmarks,
-  label = labels,
-  color = colors
-)
-
-# Graficar
-ggplot(df_plot, aes(x = time, y = cumulative_hazard)) +
-  geom_line(color = "blue", size = 1.2) +
-  
-  # Líneas verticales en los landmarks
-  geom_vline(data = df_lm, aes(xintercept = time, color = label),
-             linetype = "dashed", show.legend = FALSE) +
-  
-  # Etiquetas de landmarks
-  geom_text(data = df_lm,
-            aes(x = time,
-                y = max(df_plot$cumulative_hazard) * 0.95,
-                label = label,
-                color = label),
-            angle = 90, vjust = -0.5, hjust = 1, show.legend = FALSE) +
-  
-  scale_color_manual(values = setNames(colors, labels)) +
-  
-  labs(
-    title = "Cumulative Hazard from AFT Weibull Model",
-    x = "Time",
-    y = "Cumulative Hazard"
-  ) +
-  theme_minimal()
 
 # ===============================
 #  Approach 3 general hazards
 # ===============================
+
+# =====================================
+# Modellation: PH and AFT
+# =====================================
+
+# --- Install if not yet installed
+# install.packages(c("survival", "flexsurv"))
+# install.packages("devtools")
+# devtools::install_github("FJRubio67/GHSurv")
+
+library(survival)
+library(flexsurv)
+library(GHSurv)
+
+ 
+# 2. Fit models
+ 
+
+# Cox Proportional Hazards
+cox_fit <- coxph(Surv(time, status) ~ x1 + x2, data = df_aft)
+
+# Weibull PH (parametric proportional hazards)
+fit_weibull_ph <- flexsurvreg(
+  Surv(time, status) ~ x1 + x2,
+  data = df_aft,
+  dist = "weibullPH"
+)
+
+# Weibull AFT
+fit_weibull_aft <- flexsurvreg(
+  Surv(time, status) ~ x1 + x2,
+  data = df_aft,
+  dist = "weibull"
+)
+
+ 
+# 3. Compare cumulative hazard functions
+# Time grid
+
+times <- seq(50, 72, length.out = 200)
+
+# --- Weibull PH cumulative hazard
+plot(fit_weibull_ph, type = "cumhaz", col = "blue", lwd = 2,
+     xlab = "Time", ylab = "Cumulative Hazard",
+     main = "Cumulative Hazard Function - Static Modelling",
+     xlim = c(50, 72))
+
+# --- Weibull AFT cumulative hazard
+plot(fit_weibull_aft, type = "cumhaz", col = "green", lwd = 2,
+     add = TRUE)
+
+# --- Add legend
+legend("topleft", legend = c("KM", "PH", "AFT"),
+       col = c("black", "blue", "green"), lwd = 2, bty = "n")
+
+
+# Landmark lines
+landmarks <- c(60, 62, 64, 66, 68, 70, 72)
+labels <- c("t1", "t2", "t3", "t4", "t5", "t6", "t7")
+colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#FF99B8")
+
+# for(i in seq_along(landmarks)) {
+#   abline(v = landmarks[i], col = colors[i], lwd = 2, lty = 1)  # dashed vertical line
+#   text(x = landmarks[i], y = par("usr")[4], labels[i], pos = 3, col = colors[i], cex = 0.8)
+# }
+
+
+
+
 
 

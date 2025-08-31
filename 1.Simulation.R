@@ -210,6 +210,7 @@ for (i in 1:n_iterations) {
 # ===============================
 
 library(ggplot2)
+LMs <-  c(60, 62, 64, 66, 68, 70, 72)
 cum_deaths <- cumsum(colSums(status_matrix, na.rm = TRUE))
 df_cum <- data.frame(time = LMs, cum_deaths = cum_deaths)
 
@@ -343,8 +344,8 @@ ggplot() +
   geom_text(data = labels_df, aes(x = mean_dates, 
                                   y = max(df_deaths$individual) , 
                                   label = label, color = label),
-            vjust = -0.7, hjust = 1.2, size = 5, fontface = "bold") +
-  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+            vjust = 0.2, hjust = 1, size = 5, fontface = "bold") +
+  scale_x_date(date_breaks = "3 month", date_labels = "%b %Y") +
   labs(
     title = "Death Dates per Individual",
     subtitle = "Each point represents the date an individual died",
