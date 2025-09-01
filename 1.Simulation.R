@@ -1,4 +1,6 @@
 library(lubridate)
+library(truncnorm)
+
 # ===============================
 # Optimization of parameters
 # parameters: find shape and scale given target probability
@@ -72,22 +74,52 @@ landmarks_list <- lapply(credit_start_dates, generate_landmarks)
 landmarks <- seq(0, n_iterations, by = 1) #assumption cohort  
 K <- length(landmarks) - 1  
 
-betas <- matrix(c(-0.1, 0.15,
-                  -0.1, 0.15,
-                  -0.1, 0.15,
-                  -0.1, 0.15,
-                  -0.1, 0.15), nrow = K, byrow = TRUE)
+
+betas <- matrix(c(
+  50,  0.9,  0.8, -0.2,
+  51, 0.92, 0.81, -0.21,
+  49, 0.88, 0.79, -0.19,
+  52, 0.95, 0.82, -0.22,
+  48, 0.89, 0.78, -0.18,
+  5,  0.9,  0.8, -0.2,
+  51, 0.91, 0.81, -0.21
+), nrow = 7, byrow = TRUE)
+# Interest rate (+), # Inflation (+),# LTI (+), # Age (-)
 
 #paaramters of weibull each landmark: Shape (k), Scale (λ)
 #thetas <- matrix(c(0.5, 400, 0.5, 280, 0.5, 360, 0.5, 400, 0.5, 450), nrow = K, byrow = TRUE)
-thetas <- matrix(c(0.5, 22.25, 0.5, 22.49, 0.5, 85.64, 0.5, 24.26, 0.5, 24.46), nrow = K, byrow = TRUE)
+thetas <- matrix(c(0.5, 22.25, 0.5, 22.49, 0.5, 22.49756 , 0.5, 22.73315 , 0.5, 22.96397,0.5, 23.19023,0.5, 23.41217), nrow = K, byrow = TRUE)
 
 
 # --- Data
 # credits are originated during 2010, throughout the year
 
-x1_matrix <- matrix(rnorm(n * n_iterations), nrow = n, ncol = n_iterations)
-x2_matrix <- matrix(rnorm(n * n_iterations), nrow = n, ncol = n_iterations)
+#Covariates
+
+
+# 1. Interest rate (UK Bank Rate)
+# Truncated normal between 0.001 and 0.06, mean 0.03, sd 0.01
+x1_matrix <- matrix(rtruncnorm(n * n_iterations, a = 0.001, b = 0.06, mean = 0.03, sd = 0.01),
+                    nrow = n, ncol = n_iterations)
+
+# 2. Inflation (CPI)
+# Truncated normal between 0 and 0.10, mean 0.02, sd 0.015
+x2_matrix <- matrix(rtruncnorm(n * n_iterations, a = 0, b = 0.10, mean = 0.02, sd = 0.015),
+                    nrow = n, ncol = n_iterations)
+
+# 3. Loan-to-income (LTI)
+# Truncated normal between 1 and 6, mean 3.5, sd 0.5
+x3_matrix <- matrix(rtruncnorm(n * n_iterations, a = 1, b = 6, mean = 3.5, sd = 2),
+                    nrow = n, ncol = n_iterations)
+
+# 4. Age of borrower
+# Truncated normal between 20 and 70, mean 40, sd 10
+x4_matrix <- matrix(rtruncnorm(n * n_iterations, a = 20, b = 70, mean = 40, sd = 10),
+                    nrow = n, ncol = n_iterations)
+
+
+
+
 
 time_matrix   <- matrix(NA_real_, nrow = n, ncol = n_iterations)
 status_matrix <- matrix(NA_integer_, nrow = n, ncol = n_iterations)
@@ -156,7 +188,7 @@ for (i in seq_len(n_iterations)) {
   cat("Iteration", i, "\n")
   
   # Select the covariates for this iteration
-  covariates_i <- cbind(x1_matrix[, i], x2_matrix[, i])
+  covariates_i <- cbind(x1_matrix[, i], x2_matrix[, i],x3_matrix[, i],x4_matrix[, i] )
   
   # Initialize vectors for simulated times and observation dates
   sim_times <- numeric(n)
@@ -347,8 +379,8 @@ ggplot() +
             vjust = 0.2, hjust = 1, size = 5, fontface = "bold") +
   scale_x_date(date_breaks = "3 month", date_labels = "%b %Y") +
   labs(
-    title = "Death Dates per Individual",
-    subtitle = "Each point represents the date an individual died",
+    title = "Default Dates per Individual",
+    subtitle = "Each point shows the date an individual defaulted",
     x = "Month",
     y = "Individual"
   ) +

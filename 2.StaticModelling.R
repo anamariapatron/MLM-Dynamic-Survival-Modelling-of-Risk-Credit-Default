@@ -24,6 +24,8 @@ for (i in 1:m) {
                      status = status_matrix[, i],
                      x1 = x1_matrix[, i],
                      x2 = x2_matrix[, i],
+                     x3 = x3_matrix[, i],
+                     x4 = x4_matrix[, i],
                      obs_date = obsdate_matrix[j, i]
                    ))
 }
@@ -98,6 +100,12 @@ df_aft <- df_long %>%
     x2 = ifelse(!is.na(event_index),
                 df_long$x2[df_long$id == id][event_index],
                 df_long$x2[df_long$id == id & df_long$iteration == 7]),
+    x3 = ifelse(!is.na(event_index),
+                df_long$x3[df_long$id == id][event_index],
+                df_long$x3[df_long$id == id & df_long$iteration == 7]),
+    x4 = ifelse(!is.na(event_index),
+                df_long$x4[df_long$id == id][event_index],
+                df_long$x4[df_long$id == id & df_long$iteration == 7]),
     month_final = ifelse(!is.na(event_index),
                          df_long$month_final[df_long$id == id][event_index],
                          72)
@@ -131,18 +139,18 @@ library(GHSurv)
  
 
 # Cox Proportional Hazards
-cox_fit <- coxph(Surv(time, status) ~ x1 + x2, data = df_aft)
+cox_fit <- coxph(Surv(time, status) ~ x1 + x2+x3+x4, data = df_aft)
 
 # Weibull PH (parametric proportional hazards)
 fit_weibull_ph <- flexsurvreg(
-  Surv(time, status) ~ x1 + x2,
+  Surv(time, status) ~ x1 + x2+x3+x4,
   data = df_aft,
   dist = "weibullPH"
 )
 
 # Weibull AFT
 fit_weibull_aft <- flexsurvreg(
-  Surv(time, status) ~ x1 + x2,
+  Surv(time, status) ~ x1 + x2+x3+x4,
   data = df_aft,
   dist = "weibull"
 )
@@ -178,8 +186,7 @@ colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#F
 #   text(x = landmarks[i], y = par("usr")[4], labels[i], pos = 3, col = colors[i], cex = 0.8)
 # }
 
-
-
-
-
+#################################v
+#### prediccion #############
+#########################v
 
