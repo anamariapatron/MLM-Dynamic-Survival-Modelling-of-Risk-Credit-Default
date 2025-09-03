@@ -1,5 +1,7 @@
 library(lubridate)
 library(truncnorm)
+library(ggplot2)
+set.seed(1234)
 
 # ===============================
 # Optimization of parameters
@@ -35,15 +37,11 @@ lambdas <- sapply(1:(length(LMs) - 1), function(j) {
 lambdas
 
 
-
-
 # ===============================
 #  SIMULATION
 # ===============================
 
 rm(list = ls())
-
-set.seed(1234)
 
 
 
@@ -309,8 +307,7 @@ ggplot() +
 # ===============================
 #  plots: deaths dates
 # ===============================
-library(ggplot2)
-library(lubridate)
+
 
 # Convert matrices to long format
 df_events <- data.frame(
@@ -396,5 +393,5 @@ ggplot() +
   guides(color = "none")
 
 
-#missing: covariates and signs of betas
+ 
 

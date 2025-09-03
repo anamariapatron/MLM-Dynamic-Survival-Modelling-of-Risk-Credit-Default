@@ -6,6 +6,8 @@ library(dplyr)
 library(survival)
 library(ggplot2)
 library(eha)
+library(flexsurv)
+library(GHSurv)
 
 n <- nrow(time_matrix)
 m <- ncol(time_matrix)
@@ -125,18 +127,7 @@ df_aft <- df_long %>%
 # Modellation: PH and AFT
 # =====================================
 
-# --- Install if not yet installed
-# install.packages(c("survival", "flexsurv"))
-# install.packages("devtools")
-# devtools::install_github("FJRubio67/GHSurv")
 
-library(survival)
-library(flexsurv)
-library(GHSurv)
-
- 
-# 2. Fit models
- 
 
 # Cox Proportional Hazards
 cox_fit <- coxph(Surv(time, status) ~ x1 + x2+x3+x4, data = df_aft)
@@ -186,7 +177,4 @@ colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#F
 #   text(x = landmarks[i], y = par("usr")[4], labels[i], pos = 3, col = colors[i], cex = 0.8)
 # }
 
-#################################v
-#### prediccion #############
-#########################v
 
