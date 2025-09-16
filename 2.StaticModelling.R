@@ -9,12 +9,13 @@ library(eha)
 library(flexsurv)
 library(GHSurv)
 
+
 n <- nrow(time_matrix)
 m <- ncol(time_matrix)
 
 
 # ===============================
-#  Approach 1 LANDMARKING
+#  AFT 
 # ===============================
 df_long <- data.frame()
 for (i in 1:m) {
@@ -34,52 +35,12 @@ for (i in 1:m) {
 
 
 
-# Tus landmarks
-#LM_start_date <- as.Date("2015-01-01")
-#LM_dates <- as.Date(c("2020-01-01", "2020-03-01", "2020-05-01", "2021-07-01", "2021-09-01")) #a los 60 meses, 80 meses, 82 meses, etc
-#landmarks <- round(interval(LM_start_date, LM_dates) %/% months(1))
+
 landmarks <-  c(60, 62, 64, 66, 68, 70, 72)
 df_long$obs_date <- as.Date(df_long$obs_date)
 df_long$obs_time <- as.numeric(difftime(df_long$obs_date,initial_dates_matrix,  units = "days")) / 30.44
 df_long$month_final <- landmarks[df_long$iteration]
-
-# data_model_landmark_LOCF <- fit_LOCF_landmark(
-#   data_long = df_long,
-#   x_L = c(60, 62, 64, 66, 68, 70, 72),   # tiempos de landmark
-#   x_hor = c(60, 62, 64, 66, 68, 70, 72)+12, # horizontes de predicción
-#   covariates = c("x1", "x2"),
-#   covariates_time = c(NULL, NULL),
-#   k = 10,  # número de puntos para aproximar la integral de la función de riesgo
-#   individual_id = "id",
-#   event_time = "time",
-#   event_status = "status",
-#   survival_submodel = "cause_specific"  # modelo de supervivencia causa específica
-# )
-# t_vals <- seq(0, max(df_aft$time), length.out = 100)
-# newdata <- df_aft %>% summarise(iteration = mean(iteration), month_final = mean(month_final))
-# H_vals <- cumulative_hazard(aft_model, newdata, t_vals)
-# 
-# df_plot <- data.frame(time = t_vals, cumulative_hazard = H_vals)
-# 
-# landmarks <-  c(60, 62, 64, 66, 68, 70, 72)
-# # Landmark times, etiquetas y colores
-# labels <- c("t1", "t2", "t3", "t4", "t5", "t6", "t7")
-# colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#FF99B8") 
-# # Crear data.frame de landmarks
-# df_lm <- data.frame(
-#   time = landmarks,
-#   label = labels,
-#   color = colors
-# )
-
-
-# ===============================
-#  Approach 2 AFT
-# ===============================
-library(dplyr)
-
-
-# dataframe
+ 
 df_aft <- df_long %>%
   group_by(id) %>%
   summarise(
@@ -116,17 +77,9 @@ df_aft <- df_long %>%
 
 
 
-
-
-
 # ===============================
-#  Approach 3 general hazards
+#  Plots
 # ===============================
-
-# =====================================
-# Modellation: PH and AFT
-# =====================================
-
 
 
 # Cox Proportional Hazards
@@ -147,9 +100,6 @@ fit_weibull_aft <- flexsurvreg(
 )
 
  
-# 3. Compare cumulative hazard functions
-# Time grid
-
 times <- seq(50, 72, length.out = 200)
 
 # --- Weibull PH cumulative hazard
@@ -171,10 +121,5 @@ legend("topleft", legend = c("KM", "PH", "AFT"),
 landmarks <- c(60, 62, 64, 66, 68, 70, 72)
 labels <- c("t1", "t2", "t3", "t4", "t5", "t6", "t7")
 colors <- c("#FF9999", "#FFCC33", "#2EB67D","#57C9BE", "#7FDBFF", "#9999FF", "#FF99B8")
-
-# for(i in seq_along(landmarks)) {
-#   abline(v = landmarks[i], col = colors[i], lwd = 2, lty = 1)  # dashed vertical line
-#   text(x = landmarks[i], y = par("usr")[4], labels[i], pos = 3, col = colors[i], cex = 0.8)
-# }
-
+ 
 

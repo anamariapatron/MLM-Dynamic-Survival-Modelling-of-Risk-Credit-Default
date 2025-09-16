@@ -13,7 +13,7 @@ m <- ncol(time_matrix)
 
  
 # ===============================
-#  Approach 2 landmarking
+#   Landmarking
 # ===============================
 
 df_long <- data.frame()
@@ -92,8 +92,6 @@ plot(
 data_model_landmark_LOCF[["60"]]$data$event_prediction
 data_model_landmark_LOCF[["60"]]$data$event_time
 
-
-
 data_model_landmark_LOCF$model_survival
 
 
@@ -102,13 +100,9 @@ data_model_landmark_LOCF$model_survival
 #  plots
 # ===============================
 
-# Supongamos que queremos la persona con id = 3
+# Example Hazard cumulative function id = 3
 person_id <- 3
-
-# Seleccionamos los landmarks que tenemos
 LMs <- names(data_model_landmark_LOCF)
-
-# Crear dataframe con cumulative hazard para esta persona en cada landmark
 cumhaz_person <- lapply(LMs, function(LM) {
   df_lm <- data_model_landmark_LOCF[[LM]]$data
   df_person <- df_lm %>% filter(id == person_id)
@@ -120,7 +114,7 @@ cumhaz_person <- lapply(LMs, function(LM) {
   )
 }) %>% bind_rows()
 
-# Graficar
+# plot
 ggplot(cumhaz_person, aes(x = LM, y = cumhaz)) +
   geom_point(size = 3, color = "blue") +
   geom_line(color = "blue", lwd = 1) +

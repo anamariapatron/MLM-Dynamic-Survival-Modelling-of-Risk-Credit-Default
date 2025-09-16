@@ -1,6 +1,6 @@
 
 # ===============================
-#  testing: we take the mean and approximate the risk probability  
+#  Testing: we take the mean and approximate the risk probability  
 # ===============================
 
 matrices <- list(x1_matrix, x2_matrix, x3_matrix, x4_matrix)
@@ -51,13 +51,5 @@ weibull_vals
 result <- weibull_vals * dot_products_exp
 result
 
-#Conclusion: the risk of the event increases, landmarking is not that accurate but aft is even worse
-# [,1]
-# [1,] 0.009825581
-# [2,] 0.002075948
-# [3,] 0.033560692
-# [4,] 0.647176944
-# [5,] 0.098796546
-# [6,] 0.381715775
-# [7,] 0.284256476
+#Conclusion: the risk of the event increases. Landmarking provides limited accuracy, yet AFT performs even worse.
 

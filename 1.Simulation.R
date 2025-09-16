@@ -1,27 +1,24 @@
+# ===============================
+# Libraries
+# ===============================
+
 library(lubridate)
 library(truncnorm)
 library(ggplot2)
 set.seed(1234)
 
 # ===============================
-# Optimization of parameters
-# parameters: find shape and scale given target probability
+# Parameters
 # ===============================
 
 # Function to compute lambda given k, an interval, and the target probability p
-
 k <- 1.5   # shape parameter (can tune)
 p_target <- 0.2  # 20% default per interval
 
-#dates landmarking
+
 LM_start_date <- as.Date("2015-01-01")
-#LM_dates <- as.Date(c("2020-01-01", "2020-03-01", "2020-05-01", "2021-07-01", "2021-09-01", "2021-11-01", "2022-01-01"))
-#LMs <- round(interval(LM_start_date, LM_dates) %/% months(1))
 LMs <-  c(60, 62, 64, 66, 68, 70, 72)
-LMs
 
-
-# Función para encontrar lambda dado t0, t1, k y p_target
 find_lambda <- function(t0, t1, k, p_target = 0.2) {
   f <- function(lambda) {
     ratio <- exp(-((t1 / lambda)^k - (t0 / lambda)^k))
@@ -34,7 +31,6 @@ lambdas <- sapply(1:(length(LMs) - 1), function(j) {
   find_lambda(LMs[j], LMs[j + 1], k, p_target)
 })
 
-lambdas
 
 
 # ===============================
@@ -42,16 +38,10 @@ lambdas
 # ===============================
 
 rm(list = ls())
-
-
-
-# --- Parameters
-library(lubridate)
-
 # Example: n individuals with different credit start dates
 n <- 1000
 n_iterations <- 7
-base_date <- as.Date("2020-01-01") #start to observe the behavior in 2020
+base_date <- as.Date("2020-01-01")  
 credit_start_dates <- as_date("2015-01-01") + days(sample(0:364, n, replace = TRUE))
 
 # Function to generate individual landmarks
@@ -84,16 +74,14 @@ betas <- matrix(c(
 ), nrow = 7, byrow = TRUE)
 # Interest rate (+), # Inflation (+),# LTI (+), # Age (-)
 
-#paaramters of weibull each landmark: Shape (k), Scale (λ)
+#parameters of weibull each landmark: Shape (k), Scale (λ)
 #thetas <- matrix(c(0.5, 400, 0.5, 280, 0.5, 360, 0.5, 400, 0.5, 450), nrow = K, byrow = TRUE)
 thetas <- matrix(c(0.5, 22.25, 0.5, 22.49, 0.5, 22.49756 , 0.5, 22.73315 , 0.5, 22.96397,0.5, 23.19023,0.5, 23.41217), nrow = K, byrow = TRUE)
 
 
 # --- Data
 # credits are originated during 2010, throughout the year
-
 #Covariates
-
 
 # 1. Interest rate (UK Bank Rate)
 # Truncated normal between 0.001 and 0.06, mean 0.03, sd 0.01
@@ -114,8 +102,6 @@ x3_matrix <- matrix(rtruncnorm(n * n_iterations, a = 1, b = 6, mean = 3.5, sd = 
 # Truncated normal between 20 and 70, mean 40, sd 10
 x4_matrix <- matrix(rtruncnorm(n * n_iterations, a = 20, b = 70, mean = 40, sd = 10),
                     nrow = n, ncol = n_iterations)
-
-
 
 
 
@@ -239,6 +225,7 @@ for (i in 1:n_iterations) {
 #  plots: deaths
 # ===============================
 
+
 library(ggplot2)
 LMs <-  c(60, 62, 64, 66, 68, 70, 72)
 cum_deaths <- cumsum(colSums(status_matrix, na.rm = TRUE))
@@ -301,9 +288,7 @@ ggplot() +
     axis.text.x = element_text(angle = 45, hjust = 1)
   )
 
-# ===============================
-
-
+ 
 # ===============================
 #  plots: deaths dates
 # ===============================
