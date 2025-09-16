@@ -21,4 +21,4 @@ A presentation summarizing this work can be accessed here: https://github.com/an
 
 A poster of this work can be found here: https://github.com/anamariapatron/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage-Sector/blob/fba55ceab0114b038a0114d465eefc3a30d17bac/documents/Poster_AMPP_VF.pdf
 
-Mary Lister McCammon Summer Fellowship is a funded opportunity developed at Imperial College London and UCL. More information here: https://www.imperial.ac.uk/mathematics/postgraduate/the-mary-lister-mccammon-summer-research-fellowship/
+Mary Lister McCammon Summer Fellowship is a funded opportunity hosted at Imperial College London and UCL. More information here: https://www.imperial.ac.uk/mathematics/postgraduate/the-mary-lister-mccammon-summer-research-fellowship/
