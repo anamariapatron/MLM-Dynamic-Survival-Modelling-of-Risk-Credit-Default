@@ -17,6 +17,8 @@ The repository is organized as follows:
 4. Testing.R – Provides a pseudo-evaluation metric for the AFT and Landmarking models.
 
 
-A presentation of this work can be found here: https://github.com/anamariapatron/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage-Sector/blob/fba55ceab0114b038a0114d465eefc3a30d17bac/documents/Presentation_MLM__Survival_Modelling_applied_to_mortgage_sector.pdf
+A presentation summarizing this work can be accessed here: https://github.com/anamariapatron/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage Sector/blob/fba55ceab0114b038a0114d465eefc3a30d17bac/documents/Presentation_MLM__Survival_Modelling_applied_to_mortgage_sector.pdf
 
 A poster of this work can be found here: https://github.com/anamariapatron/MLM-On-The-Applications-Of-Survival-Modelling-In-The-Mortgage-Sector/blob/fba55ceab0114b038a0114d465eefc3a30d17bac/documents/Poster_AMPP_VF.pdf
+
+Mary Lister McCammon Summer Fellowship is a funded oportunity. More information here: https://www.imperial.ac.uk/mathematics/postgraduate/the-mary-lister-mccammon-summer-research-fellowship/
