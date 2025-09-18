@@ -1,5 +1,5 @@
 # MLM - Dynamic Survival Modelling of Risk Credit Default
-This study was undertaken in the summer of 2025 as part of the Mary Lister McCammon Summer Fellowship, under the supervision of F. Javier Rubio from the Department of Statistical Science at UCL.
+This study was undertaken during the summer of 2025 as part of the Mary Lister McCammon Summer Fellowship, under the supervision of F. Javier Rubio from the Department of Statistical Science at University College London (UCL), whose rigorous guidance, trust, and clear insights I acknowledge as instrumental to the successful development of this project.
 
 This repository contains the code and documentation for the analysis. The objective of this work is to examine the dynamics of mortgage loans in the period preceding default. To this end, we adapt survival models originally developed in biostatistics to the context of the mortgage market. Within this framework, the event is defined as the granting of a mortgage loan, whereas death is reinterpreted as the point at which the loan defaults. This conceptual shift provides a novel and pioneering contribution to the existing literature.
 
